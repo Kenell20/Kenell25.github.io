@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flappy Bird JS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background-color: #333;
+            font-family: sans-serif;
+            color: white;
+            box-sizing: border-box;
+        }
+        h1 {
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+            margin: 10px 0;
+        }
+        canvas {
+            background-color: #70c5ce;
+            border: 2px solid #555;
+            display: block;
+            cursor: pointer;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Flappy Bird</h1>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        
+        const gameWidth = 288;
+        const gameHeight = 512;
+        
+        function resizeCanvas() {
+            const container = document.body;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            const gameRatio = gameWidth / gameHeight;
+            const containerRatio = containerWidth / containerHeight;
+            
+            if (containerRatio > gameRatio) {
+                canvas.height = containerHeight * 0.85;
+                canvas.width = canvas.height * gameRatio;
+            } else {
+                canvas.width = containerWidth * 0.85;
+                canvas.height = canvas.width / gameRatio;
+            }
+            
+            ctx.imageSmoothingEnabled = false;
+        }
+        window.addEventListener('resize', resizeCanvas, false);
+        resizeCanvas();
+
+        // Imagen del pájaro incrustada en Base64
+        const birdImage = new Image();
+        birdImage.src ='pajaro.png';
+
+        const bird = {
+            x: gameWidth / 4,
+            y: gameHeight / 2,
+            width: 30,
+            height: 30,
+            gravity: 0.5,
+            lift: -7,
+            velocity: 0,
+        };
+        const pipes = [];
+        let score = 0;
+        let isGameOver = true;
+        let isGameStarted = false;
+        let gameInterval;
+        const pipeWidth = 50;
+        const pipeGap = 120;
+        const pipeSpeed = 1.5;
+        const pipeInterval = 220;
+
+        function drawBird() {
+            const scaleX = canvas.width / gameWidth;
+            const scaleY = canvas.height / gameHeight;
+            ctx.drawImage(birdImage, bird.x * scaleX, bird.y * scaleY, bird.width * scaleX, bird.height * scaleY);
+        }
+
+        function drawPipes() {
+            const scaleX = canvas.width / gameWidth;
+            const scaleY = canvas.height / gameHeight;
+            for (let i = 0; i < pipes.length; i++) {
+                const p = pipes[i];
+                ctx.fillStyle = "green";
+                ctx.fillRect(p.x * scaleX, 0, pipeWidth * scaleX, p.top * scaleY);
+                ctx.fillRect(p.x * scaleX, p.bottom * scaleY, pipeWidth * scaleX, canvas.height);
+            }
+        }
+
+        function drawScore() {
+            const scaleX = canvas.width / gameWidth;
+            ctx.fillStyle = "white";
+            ctx.font = `${24 * scaleX}px sans-serif`;
+            ctx.textAlign = "left";
+            ctx.fillText("Puntuación: " + score, 10 * scaleX, 30 * scaleX);
+        }
+
+        function drawMessage(text) {
+            const scaleX = canvas.width / gameWidth;
+            ctx.fillStyle = "white";
+            ctx.font = `${30 * scaleX}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        }
+        
+        function drawCountdown(time) {
+            const scaleX = canvas.width / gameWidth;
+            ctx.fillStyle = "yellow";
+            ctx.font = `${70 * scaleX}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.fillText(time, canvas.width / 2, canvas.height / 2);
+        }
+
+        function gameLoop() {
+            if (isGameOver || !isGameStarted) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            if (pipes.length === 0) {
+                const pipeHeight = Math.floor(Math.random() * (gameHeight - pipeGap - 100)) + 50;
+                pipes.push({
+                    x: gameWidth + 100,
+                    top: pipeHeight,
+                    bottom: pipeHeight + pipeGap,
+                    passed: false
+                });
+            } else if (pipes[pipes.length - 1].x < gameWidth - pipeInterval) {
+                const pipeHeight = Math.floor(Math.random() * (gameHeight - pipeGap - 100)) + 50;
+                 pipes.push({
+                    x: gameWidth,
+                    top: pipeHeight,
+                    bottom: pipeHeight + pipeGap,
+                    passed: false
+                });
+            }
+
+            for (let i = 0; i < pipes.length; i++) {
+                const p = pipes[i];
+                p.x -= pipeSpeed;
+                
+                if (!p.passed && p.x + pipeWidth < bird.x) {
+                    score++;
+                    p.passed = true;
+                }
+                
+                if (bird.x < p.x + pipeWidth && bird.x + bird.width > p.x &&
+                    (bird.y < p.top || bird.y + bird.height > p.bottom)) {
+                    endGame();
+                }
+                
+                if (p.x + pipeWidth < 0) {
+                    pipes.splice(i, 1);
+                    i--;
+                }
+            }
+
+            if (bird.y + bird.height > gameHeight || bird.y < 0) {
+                endGame();
+            }
+
+            drawPipes();
+            drawBird();
+            drawScore();
+        }
+
+        function flap() {
+            if (isGameStarted && !isGameOver) {
+                bird.velocity = bird.lift;
+            }
+        }
+        
+        function handleGameStart() {
+            if (!isGameStarted && isGameOver) {
+                startGame();
+            } else {
+                flap();
+            }
+        }
+
+        function endGame() {
+            isGameOver = true;
+            isGameStarted = false;
+            clearInterval(gameInterval);
+            drawMessage("¡Juego terminado! Puntuación: " + score + "\nToca la pantalla para jugar de nuevo.");
+        }
+
+        function startGame() {
+            isGameOver = false;
+            bird.y = gameHeight / 2;
+            bird.velocity = 0;
+            pipes.length = 0;
+            score = 0;
+
+            let countdown = 3;
+            const countdownInterval = setInterval(() => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawMessage("Toca la pantalla o pulsa espacio para volar");
+                drawCountdown(countdown);
+                countdown--;
+
+                if (countdown < 0) {
+                    clearInterval(countdownInterval);
+                    isGameStarted = true;
+                    gameInterval = setInterval(gameLoop, 1000 / 60);
+                }
+            }, 1000);
+        }
+        
+        document.addEventListener("mousedown", handleGameStart);
+        document.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            handleGameStart();
+        });
+        document.addEventListener("keydown", (e) => {
+            if (e.code === "Space" || e.key === " ") {
+                e.preventDefault();
+                handleGameStart();
+            }
+        });
+        
+        drawMessage("Toca la pantalla para comenzar");
+    </script>
+</body>
+</html>
